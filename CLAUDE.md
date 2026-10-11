@@ -1,19 +1,9 @@
 # task-runner
 
-Rust CLI that runs a command under `/usr/bin/time`, logs its output, and
-reports the result to Telegram (build log uploaded to Pastebin). Failed runs
-get an LLM-written summary from any OpenAI-compatible endpoint, chosen by
-`OPENAI_BASE_URL` (plus `OPENAI_API_KEY`, `OPENAI_MODEL`).
-
-## Build
-
-Credentials are compiled in from environment variables; see
-`secrets.env.template`.
-
-```sh
-set -a; source secrets.env; set +a
-cargo build --release
-```
+Rust CLI that runs a command, logs its output and reports the result to
+Telegram, with an LLM summary for failures. Purpose, build steps,
+configuration variables, usage and module layout are in @README.md; keep that
+file up to date when behaviour or configuration changes.
 
 ## Commit messages
 
