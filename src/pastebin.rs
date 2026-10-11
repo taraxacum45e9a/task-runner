@@ -1,9 +1,8 @@
-use std::fs::{self, File};
-use std::io::{self, Read, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::auth;
 use crate::error::Result;
+use crate::logs;
 use crate::sys;
 
 const LIMIT: u64 = 16 << 10;
@@ -12,25 +11,9 @@ const LIMIT: u64 = 16 << 10;
 const PRIVATE_UNLISTED: &str = "1";
 const EXPIRE_1W: &str = "1W";
 
-/// Content to paste: the whole file, or its last `LIMIT` bytes starting at a
-/// line boundary.
-fn paste_code(file: &Path) -> io::Result<String> {
-    let size = fs::metadata(file)?.len();
-    if size <= LIMIT {
-        return Ok(String::from_utf8_lossy(&fs::read(file)?).into_owned());
-    }
-    let mut f = File::open(file)?;
-    f.seek(SeekFrom::Start(size - LIMIT))?;
-    let mut buf = Vec::new();
-    f.read_to_end(&mut buf)?;
-    let text = String::from_utf8_lossy(&buf);
-    let start = text.find('\n').map_or(0, |i| i + 1);
-    Ok(text[start..].to_string())
-}
-
 /// Upload `file` as an unlisted paste and return its URL.
 pub fn upload(file: &Path) -> Result<String> {
-    let paste_code = paste_code(file)?;
+    let paste_code = logs::tail(file, LIMIT)?;
 
     let user_key = ureq::post("https://pastebin.com/api/api_login.php")
         .send_form(&[

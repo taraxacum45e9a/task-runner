@@ -1,7 +1,9 @@
 # task-runner
 
 Rust CLI that runs a command under `/usr/bin/time`, logs its output, and
-reports the result to Telegram (build log uploaded to Pastebin).
+reports the result to Telegram (build log uploaded to Pastebin). Failed runs
+get an LLM-written summary from any OpenAI-compatible endpoint, chosen by
+`OPENAI_BASE_URL` (plus `OPENAI_API_KEY`, `OPENAI_MODEL`).
 
 ## Build
 

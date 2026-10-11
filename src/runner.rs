@@ -11,6 +11,8 @@ use crate::sys;
 
 pub struct Run {
     pub success: bool,
+    /// Human-readable exit status, e.g. `exit status: 2` or a signal.
+    pub exit: String,
     pub started: DateTime<Local>,
     pub finished: DateTime<Local>,
     pub build_log: PathBuf,
@@ -42,6 +44,7 @@ pub fn run(logdir: &Path, workdir: &Path, args: &[String]) -> Result<Run> {
 
     Ok(Run {
         success: status.success(),
+        exit: status.to_string(),
         started,
         finished: Local::now(),
         build_log,

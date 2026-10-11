@@ -7,16 +7,62 @@ use chrono::{DateTime, Local};
 use serde_json::Value;
 
 use crate::error::{Error, Result};
-use crate::{pastebin, sys, telegram};
+use crate::{llm, logs, pastebin, sys, telegram};
+
+/// Bytes of build output / time log shown to the model.
+const LLM_OUTPUT_LIMIT: u64 = 32 << 10;
+const LLM_TIME_LIMIT: u64 = 8 << 10;
 
 /// What happened during a run, for reporting.
 pub struct Report<'a> {
     pub success: bool,
+    pub exit: &'a str,
+    pub command: &'a [String],
     pub started: DateTime<Local>,
     pub finished: DateTime<Local>,
     pub workdir: &'a Path,
     pub build_log: &'a Path,
     pub time_log: &'a Path,
+}
+
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// LLM explanation of a failed run, as message lines.
+fn failure_summary(r: &Report) -> Vec<String> {
+    let input = logs::tail(r.build_log, LLM_OUTPUT_LIMIT).map(|output| {
+        let time = logs::tail(r.time_log, LLM_TIME_LIMIT).unwrap_or_default();
+        (output, time)
+    });
+    let result = input
+        .map_err(Error::from)
+        .and_then(|(output_tail, time_log)| {
+            llm::summarise(&llm::Failure {
+                command: r.command,
+                exit: r.exit,
+                time_log: &time_log,
+                output_tail: &output_tail,
+            })
+        });
+    match result {
+        Ok(text) => vec![
+            "<b>🤖 Summary</b>".into(),
+            escape_html(&text),
+            String::new(),
+        ],
+        Err(Error::Http { message, body }) => vec![
+            format!("⚠️ Summary error: {}", escape_html(&message)),
+            format!("⚠️ Summary error: {}", escape_html(body.trim())),
+            String::new(),
+        ],
+        Err(e) => vec![
+            format!("⚠️ Summary error: {}", escape_html(&e.to_string())),
+            String::new(),
+        ],
+    }
 }
 
 /// C `ctime()`-style timestamp.
@@ -58,6 +104,10 @@ fn render(r: &Report) -> String {
         "</ul>".to_string(),
     ];
 
+    if !r.success && llm::enabled() {
+        body.extend(failure_summary(r));
+    }
+
     match pastebin::upload(r.build_log) {
         Ok(url) => body.push(url),
         Err(Error::Http { message, body: b }) => {
@@ -79,4 +129,14 @@ fn render(r: &Report) -> String {
 
 pub fn send(report: &Report) -> Result<Value> {
     telegram::send(&render(report))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_html;
+
+    #[test]
+    fn escapes_html_specials() {
+        assert_eq!(escape_html("a<b>&c"), "a&lt;b&gt;&amp;c");
+    }
 }

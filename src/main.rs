@@ -1,6 +1,8 @@
 mod auth;
 mod cli;
 mod error;
+mod llm;
+mod logs;
 mod notify;
 mod pastebin;
 mod runner;
@@ -21,6 +23,8 @@ fn run() -> Result<()> {
 
     notify::send(&notify::Report {
         success: run.success,
+        exit: &run.exit,
+        command: &cli.args,
         started: run.started,
         finished: run.finished,
         workdir: &cli.workdir,
