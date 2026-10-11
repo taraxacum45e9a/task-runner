@@ -3,7 +3,7 @@
 Run a command, record its output and resource usage, and get the result on
 Telegram when it finishes.
 
-For each run, `task-runner`:
+For each run, `RUN`:
 
 1. runs the command under GNU `time --verbose`, writing its stdout/stderr to
    `build.<timestamp>.log` and the `time` report to `time.<timestamp>.log`;
@@ -31,7 +31,7 @@ set -a; source secrets.env; set +a
 cargo build --release
 ```
 
-The binary is `target/release/task-runner`. Anyone who can read it can extract
+The binary is `target/release/RUN`. Anyone who can read it can extract
 the embedded credentials, so keep it private.
 
 ### Configuration
@@ -63,7 +63,7 @@ Set `OPENAI_API_KEY` and `OPENAI_MODEL` to match the provider.
 ## Usage
 
 ```
-task-runner [-l <LOGDIR>] [-w <WORKDIR>] <COMMAND> [ARGS...]
+RUN [-l <LOGDIR>] [-w <WORKDIR>] <COMMAND> [ARGS...]
 ```
 
 | Option              | Default | Meaning                              |
@@ -75,7 +75,7 @@ Everything after the first positional argument belongs to the command, so
 options of the command itself need no `--`:
 
 ```sh
-task-runner -w ~/src/project -l ~/logs make -j8 all
+RUN -w ~/src/project -l ~/logs make -j8 all
 ```
 
 Notes:
