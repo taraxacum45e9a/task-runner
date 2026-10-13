@@ -9,6 +9,10 @@ use serde_json::Value;
 use crate::error::{Error, Result};
 use crate::{llm, logs, pastebin, sys, telegram};
 
+/// Build logs up to this many bytes go straight into the message; larger ones
+/// are uploaded to Pastebin.
+const INLINE_LOG_LIMIT: u64 = 1024;
+
 /// Bytes of build output / time log shown to the model.
 const LLM_OUTPUT_LIMIT: u64 = 32 << 10;
 const LLM_TIME_LIMIT: u64 = 8 << 10;
@@ -65,6 +69,37 @@ fn failure_summary(r: &Report) -> Vec<String> {
     }
 }
 
+/// Inline rendering of a small build log.
+fn inline_log(text: &str) -> String {
+    let text = text.trim_end();
+    if text.is_empty() {
+        "(build log is empty)".to_string()
+    } else {
+        format!("<pre>{}</pre>", escape_html(text))
+    }
+}
+
+/// The build log as message lines: inline if small, else a Pastebin link.
+fn build_log_section(path: &Path) -> Vec<String> {
+    let inline = fs::metadata(path)
+        .map(|m| m.len() <= INLINE_LOG_LIMIT)
+        .unwrap_or(false);
+    if inline {
+        return match fs::read(path) {
+            Ok(bytes) => vec![inline_log(&String::from_utf8_lossy(&bytes))],
+            Err(e) => vec![format!("⚠️ Error: {}", escape_html(&e.to_string()))],
+        };
+    }
+    match pastebin::upload(path) {
+        Ok(url) => vec![url],
+        Err(Error::Http { message, body }) => vec![
+            format!("⚠️ Error: {message}"),
+            format!("⚠️ Error: {}", body.trim()),
+        ],
+        Err(e) => vec![format!("⚠️ Error: {e}")],
+    }
+}
+
 /// C `ctime()`-style timestamp.
 fn ctime(t: &DateTime<Local>) -> String {
     t.format("%a %b %e %H:%M:%S %Y").to_string()
@@ -108,14 +143,7 @@ fn render(r: &Report) -> String {
         body.extend(failure_summary(r));
     }
 
-    match pastebin::upload(r.build_log) {
-        Ok(url) => body.push(url),
-        Err(Error::Http { message, body: b }) => {
-            body.push(format!("⚠️ Error: {message}"));
-            body.push(format!("⚠️ Error: {}", b.trim()));
-        }
-        Err(e) => body.push(format!("⚠️ Error: {e}")),
-    }
+    body.extend(build_log_section(r.build_log));
 
     body.push(String::new());
 
@@ -133,10 +161,20 @@ pub fn send(report: &Report) -> Result<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::escape_html;
+    use super::{escape_html, inline_log};
 
     #[test]
     fn escapes_html_specials() {
         assert_eq!(escape_html("a<b>&c"), "a&lt;b&gt;&amp;c");
+    }
+
+    #[test]
+    fn inline_log_is_escaped_and_trimmed() {
+        assert_eq!(inline_log("a <b>\n\n"), "<pre>a &lt;b&gt;</pre>");
+    }
+
+    #[test]
+    fn empty_inline_log_has_placeholder() {
+        assert_eq!(inline_log("\n"), "(build log is empty)");
     }
 }

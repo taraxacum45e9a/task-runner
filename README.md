@@ -7,9 +7,10 @@ For each run, `RUN`:
 
 1. runs the command under GNU `time --verbose`, writing its stdout/stderr to
    `build.<timestamp>.log` and the `time` report to `time.<timestamp>.log`;
-2. uploads the tail of the build log to Pastebin (unlisted, expires in a week);
+2. includes the build log in the Telegram message if it is at most 1024 bytes,
+   otherwise uploads its tail to Pastebin (unlisted, expires in a week);
 3. sends a Telegram message with the outcome, timings, working directory, the
-   paste link and the `time` report;
+   build log (inline or as a paste link) and the `time` report;
 4. if the command failed, asks an LLM what went wrong and includes the answer.
 
 ## Requirements
@@ -84,9 +85,9 @@ Notes:
   exit status. It exits non-zero only if running or notifying failed.
 - It tries to raise its priority to niceness `-15` (the command inherits it).
   Without privileges this prints a warning and the run continues.
-- Pastebin gets at most the last 16 KiB of the build log; the LLM sees the last
-  32 KiB. Failures to upload or summarise are reported in the message and never
-  block it.
+- Build logs over 1024 bytes go to Pastebin, which gets at most the last
+  16 KiB; the LLM sees the last 32 KiB. Failures to upload or summarise are
+  reported in the message and never block it.
 
 ## Development
 
